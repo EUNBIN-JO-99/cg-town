@@ -16,22 +16,20 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)):
         user_response = supabase.auth.get_user(token)
         user = user_response.user
         user_id = user.id
+        user_metadata = user.user_metadata or {}
         user_info = {
             "id": user.id,
             "email": user.email,
-            "name": (
-                user.user_metadata.get("name", "Unknown")
-                if user.user_metadata
-                else "Unknown"
-            ),
+            "name": user_metadata.get("name", "Unknown"),
         }
-        logger.info(f"WS auth OK: {user_id} ({user_info['name']})")
+        saved_position = user_metadata.get("last_position")
+        logger.info(f"WS auth OK: {user_id} ({user_info['name']}), saved_pos: {saved_position}")
     except Exception as e:
         logger.error(f"WS auth failed: {e}")
         await websocket.close(code=4001, reason="Authentication failed")
         return
 
-    await manager.connect(user_id, user_info, websocket)
+    await manager.connect(user_id, user_info, websocket, token, saved_position)
 
     try:
         while True:
@@ -39,8 +37,8 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)):
             if data.get("type") == "move":
                 await manager.handle_move(user_id, data)
     except WebSocketDisconnect:
-        manager.disconnect(user_id)
+        await manager.disconnect(user_id)
         await manager.broadcast_disconnect(user_id)
     except Exception:
-        manager.disconnect(user_id)
+        await manager.disconnect(user_id)
         await manager.broadcast_disconnect(user_id)

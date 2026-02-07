@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 
 // Supabase 에러 메시지를 사용자 친화적인 한국어로 변환
@@ -21,9 +21,16 @@ export default function AuthPage() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
+  const [successMessage, setSuccessMessage] = useState('')
 
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createClient()
+
+  useEffect(() => {
+    const msg = searchParams.get('message')
+    if (msg) setSuccessMessage(msg)
+  }, [searchParams])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -120,7 +127,23 @@ export default function AuthPage() {
             />
           </div>
 
-          {/* 에러/성공 메시지 */}
+          {/* 성공 메시지 */}
+          {successMessage && (
+            <p
+              style={{
+                fontSize: '0.875rem',
+                textAlign: 'center',
+                padding: '12px',
+                borderRadius: '8px',
+                backgroundColor: '#ECFDF5',
+                color: '#059669'
+              }}
+            >
+              {successMessage}
+            </p>
+          )}
+
+          {/* 에러 메시지 */}
           {message && (
             <p
               style={{
@@ -158,8 +181,22 @@ export default function AuthPage() {
           </button>
         </form>
 
+        {/* 비밀번호 찾기 링크 */}
+        <div style={{ marginTop: '16px', textAlign: 'center' }}>
+          <Link
+            href="/auth/reset-password"
+            style={{
+              color: '#6B7280',
+              fontSize: '0.875rem',
+              textDecoration: 'underline'
+            }}
+          >
+            비밀번호를 잊으셨나요?
+          </Link>
+        </div>
+
         {/* 회원가입 링크 */}
-        <div style={{ marginTop: '24px', textAlign: 'center' }}>
+        <div style={{ marginTop: '16px', textAlign: 'center' }}>
           <p style={{ color: '#6B7280' }}>
             계정이 없으신가요?{' '}
             <Link

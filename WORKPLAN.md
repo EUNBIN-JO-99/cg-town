@@ -11,18 +11,9 @@
 - [x] 대표님 계정 생성 (psc@ihopper.co.kr / CgTown2026@ / 박선춘)
 - [x] 마지막 방향 포즈 유지 (키 떼도 방향 유지)
 - [x] Space키 → default 포즈 전환
+- [x] 위치 저장/복원 (user_metadata 사용, ADR: docs/decisions/001)
 
 ## 미완료 작업
-
-### 1. 위치 저장/복원 (우선순위 높음)
-- 현재: 접속할 때마다 랜덤 스폰, 서버 재시작 시 위치 소멸
-- 목표: 마지막 위치 기억해서 재접속 시 복원
-- 방법: Supabase user_metadata에 last_position 저장 (테이블 생성 불필요)
-  - `PUT /auth/v1/user` + 유저 JWT로 user_metadata.last_position 업데이트
-  - 접속 시 user_metadata에서 last_position 읽어서 스폰 위치로 사용
-  - httpx (supabase-py 의존성에 포함) 사용하여 async REST 호출
-- 수정 파일: backend/ws/manager.py, backend/ws/endpoint.py
-- 참고: service role key 없이 anon key + 유저 토큰으로 가능
 
 ### 2. 초기 로딩 시 캐릭터 깜빡임/이동 숨기기
 - 위치 복원 구현 후 확인 필요

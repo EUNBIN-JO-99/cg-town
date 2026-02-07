@@ -1,7 +1,12 @@
 import asyncio
 import json
+import logging
+import os
 import random
 from fastapi import WebSocket
+import httpx
+
+logger = logging.getLogger(__name__)
 
 TILE_SIZE = 64  # pixels per tile
 GRID_WIDTH = 24  # number of tiles horizontally
@@ -10,7 +15,7 @@ GRID_HEIGHT = 12  # number of tiles vertically
 
 class ConnectionManager:
     def __init__(self):
-        # {user_id: {"ws": WebSocket, "user_info": {...}}}
+        # {user_id: {"ws": WebSocket, "user_info": {...}, "token": str}}
         self.active_connections: dict[str, dict] = {}
         # {user_id: {"gridX": int, "gridY": int, "direction": str}}
         self.positions: dict[str, dict] = {}
@@ -32,14 +37,39 @@ class ConnectionManager:
                     return {"gridX": gx, "gridY": gy, "direction": "down"}
         return {"gridX": 1, "gridY": 1, "direction": "down"}
 
-    async def connect(self, user_id: str, user_info: dict, websocket: WebSocket):
+    async def connect(
+        self,
+        user_id: str,
+        user_info: dict,
+        websocket: WebSocket,
+        token: str,
+        saved_position: dict | None = None,
+    ):
         await websocket.accept()
         self.active_connections[user_id] = {
             "ws": websocket,
             "user_info": user_info,
+            "token": token,
         }
-        # Assign a random non-overlapping spawn position
-        spawn = self._find_spawn_position()
+        # Use saved position if available and not occupied, else random spawn
+        spawn = None
+        if saved_position:
+            gx = saved_position.get("gridX", saved_position.get("x"))
+            gy = saved_position.get("gridY", saved_position.get("y"))
+            if gx is not None and gy is not None:
+                occupied = {
+                    (pos["gridX"], pos["gridY"]) for pos in self.positions.values()
+                }
+                if (gx, gy) not in occupied:
+                    spawn = {
+                        "gridX": gx,
+                        "gridY": gy,
+                        "direction": saved_position.get("direction", "down"),
+                    }
+                    logger.info(f"Restored position for {user_id}: ({gx}, {gy})")
+        if spawn is None:
+            spawn = self._find_spawn_position()
+            logger.info(f"Random spawn for {user_id}: ({spawn['gridX']}, {spawn['gridY']})")
         self.positions[user_id] = spawn
         # Send current state to new player
         await websocket.send_json({
@@ -65,7 +95,51 @@ class ConnectionManager:
             exclude=user_id,
         )
 
-    def disconnect(self, user_id: str):
+    async def save_position(self, user_id: str):
+        """Save user's current position to Supabase user_metadata."""
+        conn = self.active_connections.get(user_id)
+        pos = self.positions.get(user_id)
+        if not conn or not pos:
+            return
+
+        token = conn.get("token")
+        if not token:
+            return
+
+        supabase_url = os.environ.get("SUPABASE_URL")
+        supabase_key = os.environ.get("SUPABASE_KEY")
+        if not supabase_url or not supabase_key:
+            return
+
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.put(
+                    f"{supabase_url}/auth/v1/user",
+                    headers={
+                        "Authorization": f"Bearer {token}",
+                        "apikey": supabase_key,
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "data": {
+                            "last_position": {
+                                "gridX": pos["gridX"],
+                                "gridY": pos["gridY"],
+                                "direction": pos.get("direction", "down"),
+                            }
+                        }
+                    },
+                    timeout=5.0,
+                )
+                if response.status_code == 200:
+                    logger.info(f"Saved position for {user_id}: ({pos['gridX']}, {pos['gridY']})")
+                else:
+                    logger.warning(f"Failed to save position for {user_id}: {response.status_code}")
+        except Exception as e:
+            logger.error(f"Error saving position for {user_id}: {e}")
+
+    async def disconnect(self, user_id: str):
+        await self.save_position(user_id)
         self.active_connections.pop(user_id, None)
         self.positions.pop(user_id, None)
 
@@ -87,7 +161,7 @@ class ConnectionManager:
             except Exception:
                 disconnected.append(uid)
         for uid in disconnected:
-            self.disconnect(uid)
+            await self.disconnect(uid)
 
     async def handle_move(self, user_id: str, data: dict):
         grid_x = data.get("gridX", 0)
