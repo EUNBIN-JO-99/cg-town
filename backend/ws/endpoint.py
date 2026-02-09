@@ -17,13 +17,17 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)):
         user = user_response.user
         user_id = user.id
         user_metadata = user.user_metadata or {}
+        # 이메일 @ 앞부분을 캐릭터 폴더명으로 사용
+        email_prefix = user.email.split("@")[0] if user.email else ""
+
         user_info = {
             "id": user.id,
             "email": user.email,
+            "email_prefix": email_prefix,
             "name": user_metadata.get("name", "Unknown"),
         }
         saved_position = user_metadata.get("last_position")
-        logger.info(f"WS auth OK: {user_id} ({user_info['name']}), saved_pos: {saved_position}")
+        logger.info(f"WS auth OK: {user_id} ({email_prefix}), saved_pos: {saved_position}")
     except Exception as e:
         logger.error(f"WS auth failed: {e}")
         await websocket.close(code=4001, reason="Authentication failed")

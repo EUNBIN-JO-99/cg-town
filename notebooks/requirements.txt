@@ -1,0 +1,6 @@
+jupyter
+openai
+requests
+Pillow
+python-dotenv
+matplotlib

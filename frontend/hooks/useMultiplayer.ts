@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 interface PlayerInfo {
   id: string
   email: string
+  email_prefix: string
   name: string
 }
 
@@ -25,14 +26,26 @@ export function useMultiplayer() {
   const [remotePlayers, setRemotePlayers] = useState<Record<string, RemotePlayer>>({})
   const [isConnected, setIsConnected] = useState(false)
   const [myName, setMyName] = useState<string>('')
+  const [myEmailPrefix, setMyEmailPrefix] = useState<string>('')
   const [myGridPos, setMyGridPos] = useState<{ x: number; y: number } | null>(null)
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  // React Strict Mode 중복 연결 방지를 위한 연결 상태 추적
+  const isConnectingRef = useRef<boolean>(false)
 
   const connect = useCallback(async () => {
+    // 이미 연결 중이거나 연결된 상태면 스킵 (Strict Mode 중복 호출 방지)
+    if (isConnectingRef.current || wsRef.current?.readyState === WebSocket.OPEN || wsRef.current?.readyState === WebSocket.CONNECTING) {
+      return
+    }
+    isConnectingRef.current = true
+
     const supabase = createClient()
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.access_token) return
+    if (!session?.access_token) {
+      isConnectingRef.current = false
+      return
+    }
 
     setMyName(session.user?.user_metadata?.name || session.user?.email || '')
 
@@ -41,6 +54,7 @@ export function useMultiplayer() {
 
     ws.onopen = () => {
       setIsConnected(true)
+      isConnectingRef.current = false
     }
 
     ws.onmessage = (event) => {
@@ -51,6 +65,9 @@ export function useMultiplayer() {
           setRemotePlayers(data.players)
           if (data.your_position) {
             setMyGridPos({ x: data.your_position.gridX, y: data.your_position.gridY })
+          }
+          if (data.your_email_prefix) {
+            setMyEmailPrefix(data.your_email_prefix)
           }
           break
         case 'player_joined':
@@ -83,18 +100,21 @@ export function useMultiplayer() {
 
     ws.onclose = (event) => {
       setIsConnected(false)
-      // Don't reconnect if auth failed (code 4001)
+      isConnectingRef.current = false
+      wsRef.current = null
+      // 인증 실패 시 재연결 안 함 (code 4001)
       if (event.code === 4001) {
         console.warn('WebSocket auth failed, not reconnecting')
         return
       }
-      // Reconnect after 3 seconds
+      // 3초 후 재연결
       reconnectTimeoutRef.current = setTimeout(() => {
         connect()
       }, 3000)
     }
 
     ws.onerror = () => {
+      isConnectingRef.current = false
       ws.close()
     }
   }, [])
@@ -122,5 +142,5 @@ export function useMultiplayer() {
     }
   }, [])
 
-  return { remotePlayers, isConnected, sendPosition, myName, myGridPos }
+  return { remotePlayers, isConnected, sendPosition, myName, myEmailPrefix, myGridPos }
 }

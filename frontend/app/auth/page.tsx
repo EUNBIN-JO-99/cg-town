@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
@@ -16,7 +16,8 @@ function getErrorMessage(error: string): string {
   return error
 }
 
-export default function AuthPage() {
+// useSearchParams를 사용하는 내부 컴포넌트
+function AuthForm() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -213,5 +214,24 @@ export default function AuthPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+// Suspense로 감싼 메인 컴포넌트
+export default function AuthPage() {
+  return (
+    <Suspense fallback={
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)'
+      }}>
+        <p>로딩 중...</p>
+      </div>
+    }>
+      <AuthForm />
+    </Suspense>
   )
 }

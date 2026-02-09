@@ -45,6 +45,21 @@ class ConnectionManager:
         token: str,
         saved_position: dict | None = None,
     ):
+        # 같은 user_id로 이미 연결되어 있으면 기존 연결 끊기 (중복 연결 방지)
+        if user_id in self.active_connections:
+            old_conn = self.active_connections[user_id]
+            old_ws = old_conn.get("ws")
+            logger.info(f"Closing existing connection for {user_id} (duplicate connect)")
+            try:
+                await old_ws.close(code=4002, reason="duplicate_connection")
+            except Exception:
+                pass
+            # 기존 위치는 유지 (saved_position으로 사용)
+            if user_id in self.positions and saved_position is None:
+                saved_position = self.positions[user_id]
+            # 기존 연결 정보 제거 (위치는 유지)
+            self.active_connections.pop(user_id, None)
+
         await websocket.accept()
         self.active_connections[user_id] = {
             "ws": websocket,
@@ -75,6 +90,7 @@ class ConnectionManager:
         await websocket.send_json({
             "type": "init",
             "your_position": spawn,
+            "your_email_prefix": user_info.get("email_prefix", ""),
             "players": {
                 uid: {
                     "position": self.positions[uid],

@@ -1,5 +1,6 @@
 # ===== 공통 =====
 .DS_Store
+._*
 *.log
 .env
 .env.local
@@ -25,6 +26,11 @@ backend/.pytest_cache/
 .idea/
 *.swp
 *.swo
+
+# ===== Notebooks =====
+notebooks/outputs/*
+!notebooks/outputs/.gitkeep
+notebooks/.ipynb_checkpoints/
 
 # ===== 기타 =====
 *.local

@@ -2,12 +2,16 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import os
+import logging
 
 from api.router import router
 from ws.endpoint import router as ws_router
 
 # 환경변수 로드
 load_dotenv()
+
+# 로깅 설정
+logging.basicConfig(level=logging.INFO)
 
 app = FastAPI(
     title="CG Inside 직원 도감 API",
