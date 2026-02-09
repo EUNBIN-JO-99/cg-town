@@ -8,6 +8,7 @@
 
 # ===== Frontend (Next.js) =====
 frontend/node_modules/
+scripts/node_modules/
 frontend/.next/
 frontend/out/
 frontend/.vercel
