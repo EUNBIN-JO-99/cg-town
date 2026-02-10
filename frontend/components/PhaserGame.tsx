@@ -151,9 +151,9 @@ class MainScene extends Phaser.Scene {
     const deco2Layer = map.createLayer('deco 2', allTilesets, 0, 0)
     deco2Layer?.setDepth(-7)
 
-    // 카메라 설정 (맵 경계 + 상단 여백으로 데코 요소 잘림 방지)
-    const cameraPadding = TILE_SIZE
-    this.cameras.main.setBounds(-cameraPadding, -cameraPadding, MAP_WIDTH + cameraPadding * 2, MAP_HEIGHT + cameraPadding * 2)
+    // 카메라 설정: 맵 전체가 브라우저에 보이도록 zoom + 위치 고정
+    this.updateCameraFit()
+    this.scale.on('resize', () => this.updateCameraFit())
 
     // 플레이어 스프라이트 생성 (텍스처는 MY_INFO_UPDATE에서 설정)
     this.player = this.add.sprite(
@@ -197,8 +197,7 @@ class MainScene extends Phaser.Scene {
     this.playerStatusText.setOrigin(0.5, 0)
     this.playerStatusText.setDepth(1000)
 
-    // 카메라가 플레이어를 따라가도록 설정
-    this.cameras.main.startFollow(this.player, true, 0.1, 0.1)
+    // 카메라 고정 (맵 전체 보기 모드이므로 플레이어 따라가지 않음)
 
     // 키보드 입력 설정
     if (this.input.keyboard) {
@@ -380,6 +379,29 @@ class MainScene extends Phaser.Scene {
       return fallbackKey
     }
     return '__DEFAULT'
+  }
+
+  /**
+   * 카메라를 브라우저 크기에 맞춰 맵 전체가 보이도록 zoom + 위치 설정
+   * - 맵 Top edge가 브라우저 상단에 붙도록 고정
+   * - 수평은 중앙 정렬
+   */
+  private updateCameraFit() {
+    const cam = this.cameras.main
+    const zoomX = cam.width / MAP_WIDTH
+    const zoomY = cam.height / MAP_HEIGHT
+    const zoom = Math.min(zoomX, zoomY)
+    cam.setZoom(zoom)
+
+    // 줌 적용 후 월드 좌표 기준 보이는 영역 크기
+    const visibleW = cam.width / zoom
+    const visibleH = cam.height / zoom
+
+    // 수평 중앙, 수직은 맵 Top이 뷰포트 상단에 붙도록
+    cam.scrollX = (MAP_WIDTH - visibleW) / 2
+    cam.scrollY = 0
+
+    cam.removeBounds()
   }
 
   update() {
